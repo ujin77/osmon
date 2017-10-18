@@ -95,13 +95,13 @@ def top_process():
     for proc in psutil.process_iter():
         cpu = proc.cpu_percent()
         mem = proc.memory_percent()
-        name = proc.name()
         if cpu > max_cpu:
             max_cpu = cpu
-            max_cpu_name = name +'['+ str(round(cpu,1)) + '%]'
+            max_cpu_name = '{0}% {1}[{2}]: {3}'.format(round(cpu,1) ,proc.name(), proc.pid, ' '.join(proc.cmdline()))
+
         if mem > max_mem:
             max_mem = mem
-            max_mem_name = name +'['+ str(round(mem,1)) + '%]'
+            max_mem_name = '{0}% {1}[{2}]: {3}'.format(round(mem,1) ,proc.name(), proc.pid, ' '.join(proc.cmdline()))
     return ( { 'top_cpu': max_cpu_name, 'top_mem': max_mem_name } )
 
 class OSMON(CDaemon):
