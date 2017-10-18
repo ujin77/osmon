@@ -5,6 +5,7 @@
 #sudo pip install lockfile
 #sudo pip install py-zabbix
 #sudo pip install paho-mqtt
+#sudo pip install psutil
 
 import daemon, signal
 from daemon import pidfile
@@ -112,6 +113,7 @@ class OSMON(CDaemon):
     thingsboard_telemetry = 'v1/devices/me/telemetry'
     thingsboard_attributes = 'v1/devices/me/attributes'
     thingsboard_accesstoken = ''
+    thingsboard_timeout = 3
     zabbix = None
 
     def on_start(self):
@@ -128,6 +130,7 @@ class OSMON(CDaemon):
             if tb.get('telemetry'): self.thingsboard_telemetry = tb.get('telemetry') 
             if tb.get('attributes'): self.thingsboard_attributes = tb.get('attributes')
             if tb.get('accesstoken'): self.thingsboard_accesstoken = tb.get('accesstoken')
+            if tb.get('timeout'): self.thingsboard_timeout = tb.get('timeout')
             self.log.info('send messages to thingsboard: ' + self.thingsboard)
             self.send_thingsboard_sysinfo()
 
@@ -161,7 +164,8 @@ class OSMON(CDaemon):
                 self.thingsboard_telemetry,
                 payload=json.dumps(self.data_payload),
                 hostname=self.thingsboard,
-                auth={'username':self.thingsboard_accesstoken, 'password':""}
+                auth={'username':self.thingsboard_accesstoken, 'password':""},
+                keepalive=self.thingsboard_timeout
             )
         except Exception as err:
             self.log.error('Publish thingsboard: ' + str(err))
@@ -173,7 +177,8 @@ class OSMON(CDaemon):
                 self.thingsboard_attributes,
                 payload=json.dumps(sys_info()),
                 hostname=self.thingsboard,
-                auth={'username':self.thingsboard_accesstoken, 'password':""}
+                auth={'username':self.thingsboard_accesstoken, 'password':""},
+                keepalive=self.thingsboard_timeout
             )
         except Exception as err:
             self.log.error('Publish thingsboard: ' + str(err))
