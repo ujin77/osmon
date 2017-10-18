@@ -3,6 +3,8 @@
 #
 #sudo pip install python-daemon
 #sudo pip install lockfile
+#sudo pip install py-zabbix
+#sudo pip install paho-mqtt
 
 import daemon, signal
 from daemon import pidfile
@@ -73,11 +75,43 @@ def sys_info():
     # info['disks'] = disks
     return(info)
 
+def top_process_list():
+    procs =[]
+    for proc in psutil.process_iter():
+        cpu = proc.cpu_percent()
+        name = proc.name()
+        mem = proc.memory_percent()
+        procs.append({'name': proc.name(), 'cpu':proc.cpu_percent(), 'mem':proc.memory_percent()})
+    procs = sorted(procs, key=lambda k: k['cpu'], reverse=True)
+    mems = sorted(procs, key=lambda k: k['mem'], reverse=True)
+    return ( { 'top_cpu': procs[0:3], 'top_mem': mems[0:3] } )
+
+def top_process():
+    procs =[]
+    max_cpu = 0
+    max_mem = 0
+    max_cpu_name = ''
+    max_mem_name = ''
+    for proc in psutil.process_iter():
+        cpu = proc.cpu_percent()
+        mem = proc.memory_percent()
+        name = proc.name()
+        if cpu > max_cpu:
+            max_cpu = cpu
+            max_cpu_name = name +'['+ str(round(cpu,1)) + '%]'
+        if mem > max_mem:
+            max_mem = mem
+            max_mem_name = name +'['+ str(round(mem,1)) + '%]'
+    return ( { 'top_cpu': max_cpu_name, 'top_mem': max_mem_name } )
+
 class OSMON(CDaemon):
     """docstring for OSMON"""
 
     data_payload = {}
     thingsboard = None
+    thingsboard_telemetry = 'v1/devices/me/telemetry'
+    thingsboard_attributes = 'v1/devices/me/attributes'
+    thingsboard_accesstoken = ''
     zabbix = None
 
     def on_start(self):
@@ -91,9 +125,9 @@ class OSMON(CDaemon):
         if self.get_cfg('thingsboard'):
             tb = self.get_cfg('thingsboard')
             self.thingsboard = tb.get('host')
-            self.thingsboard_telemetry = tb.get('telemetry') if tb.get('telemetry') else 'v1/devices/me/telemetry'
-            self.thingsboard_attributes = tb.get('attributes') if tb.get('attributes') else 'v1/devices/me/attributes'
-            self.thingsboard_accesstoken = tb.get('accesstoken') if tb.get('accesstoken') else ''
+            if tb.get('telemetry'): self.thingsboard_telemetry = tb.get('telemetry') 
+            if tb.get('attributes'): self.thingsboard_attributes = tb.get('attributes')
+            if tb.get('accesstoken'): self.thingsboard_accesstoken = tb.get('accesstoken')
             self.log.info('send messages to thingsboard: ' + self.thingsboard)
             self.send_thingsboard_sysinfo()
 
@@ -109,6 +143,7 @@ class OSMON(CDaemon):
         if time.time() - self._time_cpu > self.get_cfg('timer_cpu'):
             self._time_cpu=time.time()
             self.send(prep_data(psutil.cpu_times_percent(interval=None, percpu=False)))
+            self.send(top_process())
 
     def timer_mem(self):
         if time.time() - self._time_mem > self.get_cfg('timer_mem'):
@@ -120,6 +155,7 @@ class OSMON(CDaemon):
         self.data_payload.update(data)
 
     def send_thingsboard(self):
+        self.log.debug(self.data_payload)
         try:
             mqtt_publish.single(
                 self.thingsboard_telemetry,
@@ -234,7 +270,7 @@ if __name__ == "__main__":
 
     if args.config: load_config(args.config)
 
-    if args.verbose: print 'CONFIG:', json.dumps(DEFAULT_CONFIG, indent=2)
+    if args.verbose: print args.config, json.dumps(DEFAULT_CONFIG, indent=2)
 
     if args.start:
         start_daemon(pidf=args.pid_file, logf=args.log_err )
@@ -249,3 +285,4 @@ if __name__ == "__main__":
     else:
         parser.print_help()
 
+    # print json.dumps(top_process(),indent=2)
