@@ -28,7 +28,7 @@ class CDaemon(object):
     def _setLog(self):
         logger = logging.getLogger()
         if not logger.handlers:
-            handler = logging.handlers.SysLogHandler()
+            handler = logging.handlers.SysLogHandler(facility='daemon')
             handler.setFormatter(logging.Formatter(SYSLOG_FORMAT))
             # logger.setLevel(loglevel)
             logger.addHandler(handler)
