@@ -31,6 +31,7 @@ DEFAULT_CONFIG={
     'name':PROG,
     'timer_cpu': 60,
     'timer_mem': 300,
+    'timer_sens': 600,
 }
 
 def namedtuple_asdict(t):
@@ -105,6 +106,18 @@ def top_process():
             max_mem_name = '{0}% {1}[{2}]: {3}'.format(round(mem,1) ,proc.name(), proc.pid, ' '.join(proc.cmdline()))
     return ( { 'top_cpu': max_cpu_name, 'top_mem': max_mem_name } )
 
+def get_temperatures():
+    j = psutil.sensors_temperatures()
+    res = {}
+    i=0
+    for (root_key, root_val) in j.items():
+        for x in root_val:
+            for (temp_key, temp_val) in namedtuple_asdict(x).items():
+                for (key, val) in temp_val.items():
+                    res['{}_{}{}_{}'.format(root_key, temp_key, i, key)]=val
+                i=i+1
+    return res
+
 class OSMON(CDaemon):
     """docstring for OSMON"""
 
@@ -119,6 +132,8 @@ class OSMON(CDaemon):
     def on_start(self):
         self._time_cpu = time.time() - self.get_cfg('timer_cpu')
         self._time_mem = time.time() - self.get_cfg('timer_mem')
+        self._time_sens = time.time() - self.get_cfg('timer_sens')
+
         if self.get_cfg('zabbix'):
             zb = self.get_cfg('zabbix')
             self.zabbix = zb.get('host')
@@ -140,6 +155,7 @@ class OSMON(CDaemon):
     def on_run(self):
         self.timer_cpu()
         self.timer_mem()
+        self.timer_sens()
         self.push_data()
 
     def timer_cpu(self):
@@ -153,6 +169,11 @@ class OSMON(CDaemon):
             self._time_mem=time.time()
             self.send(prep_data(psutil.virtual_memory()))
             self.send(prep_data(psutil.swap_memory()))
+
+    def timer_sens(self):
+        if time.time() - self._time_sens > self.get_cfg('timer_sens'):
+            self._time_sens=time.time()
+            self.send(get_temperatures())
 
     def send(self, data):
         self.data_payload.update(data)
